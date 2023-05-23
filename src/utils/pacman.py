@@ -3,7 +3,9 @@ import numpy as np
 from scipy.spatial import distance
 
 PACMAN_COLOR = np.array([210, 164, 74])
-GHOST_COLOR = np.array([200, 72, 72])
+GHOSTS_COLOR = np.array([200, 72, 72],[84,184,153],[180,122,48],[200,72,72])
+
+
 
 def get_positions(state, color):
     positions = np.argwhere(np.all(state == color, axis=-1))
@@ -18,7 +20,9 @@ state = env.reset()
 done = False
 while not done:
     position_pac = get_positions(state, PACMAN_COLOR)
-    position_ghost = get_positions(state, GHOST_COLOR)
+    position_ghost=[]
+    for ghost in GHOSTS_COLOR:
+        position_ghost += get_positions(state, ghost)
 
     if len(position_pac) > 0 and len(position_ghost) > 0:
         # Calculer les distances entre Pac-Man et chaque fantôme
