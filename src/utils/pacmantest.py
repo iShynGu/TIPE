@@ -21,6 +21,7 @@
 # For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
 
 from util import *
+#faire import util puis mettre util. devant les fonctions
 import time
 import os
 import traceback
