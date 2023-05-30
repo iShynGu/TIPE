@@ -1,5 +1,5 @@
-# pacmanAgents.py
-# ---------------
+# game.py
+# -------
 # Licensing Information:  You are free to use or extend these projects for
 # educational purposes provided that (1) you do not distribute or publish
 # solutions, (2) you retain this notice, and (3) you provide clear
@@ -11,637 +11,768 @@
 # Student side autograding was added by Brad Miller, Nick Hay, and
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
-#jc8121
-#version 2.1
-
-from pacman import Directions
-from game import Agent
-import random
-#import numpy as np # unable to use numpy?? throws error
-import math
-#from heuristics import *
-
-class World():
-	#just a class used to store world conditions
-
-	def __init__(self, state):
-		# world is the instance from getFood() function. 
-		self.startWorldMat = self.getWorldMatrix(state.getFood())
-		self.start_state = state
-
-	def getWorldMatrix(self,world_instance):
-		# world is the instance from getFood() function. 
-		i =0
-		world = []
-		try:
-			# we don't know the size so need to use exceptions to build the world to matrix
-			while 1:
-				temp = world_instance[i]
-				world.append(temp)
-				i+=1
-		except:
-			return world
-
-	def countPellets(self):
-		pellet_count =0
-		for row in self.startWorldMat:
-			pellet_count+=row.count(True) # True is pellets
-		return pellet_count
-
-	def getDisTravelled(self,state):
-		# return manhathan distance between start state and this state
-		startloc = self.start_state.getPacmanPosition()
-		currentloc = state.getPacmanPosition()
-		return abs(startloc[0]-currentloc[0])+abs(startloc[1]-currentloc[1])
-
-	def getSurroundingPellets(self,location, world_mat):
-		#given location of pacman we want to see number of surrounding pellets
-		#location is xy, 
-		None
-
-class CompetitionAgent(Agent):
-	#SuperiorAStarAgent
-	# a superior version to HW which tackles:
-	# - pacman getting stuck in back and forth movement
-	# - pacman getting stuck in local area with no nearby pellets - by forcing no backward movement is very effective. reset after unstuck
-	# - pacman getting ambushed by ghosts
-	# - fast perforamnce due to laxy evaluation
-	# - efficient path planning?
-	# - winning the game 99%
-
-	#version which avoids ghost
-	go_backchance=0.3
-
-	visited = [] # storing visited states
-	nextToVisit =[] #stores the state we should visit next. excluding previous state
-	winningState = None #storing the winning state
-	startState= None
-	bestMoves =None
-	moveIndex=0 
-	finalStateScore=0
-
-	count =0
-	# Initialization Function: Called one time when the game starts
-	def registerInitialState(self, state):
-		self.generateAStarRoute(state) # generate A-star route
-		return
-
-	def resetStat(self):
-		self.visited = [] # storing visited states
-		self.nextToVisit =[] #stores the state we should visit next. excluding previous state
-		self.winningState = None #storing the winning state
-		self.startState= None
-		self.bestMoves =None
-		self.moveIndex=0
-
-	def generateAStarRoute(self, state):
-		print('generate new route')
-		self.resetStat()
-		self.startState=state # starting state
-		self.start_world = World(state)
-		self.start_score = self.start_world.countPellets() # starting world pellets
-		self.nextToVisit.append((state,[],self.start_score))
-
-		#find max
-		self.findWinState()
-		if self.winningState is None:
-			#winningState is not found. just find lowest fScore
-			self.visited.sort(key=lambda x: x[2])#,len(x[1])))
-			self.bestMoves= self.visited[0]
-			self.bestMoves = self.bestMoves[1]
-		else:
-			#there is winning state
-			self.bestMoves = self.winningState[1]
-		return
-
-	def goingBack(self,action,prevActions):
-		#function to check if new direction will go back which is not what we want?
-		#without this function, we reach far less optimal state? As more generatePacmanSuccessor calls are needed
-
-		# if dont' want to use this function uncomment below:
-		#return False
-
-		if not prevActions:
-			return False
-		prevAction = prevActions[len(prevActions)-1]
-		if (action == "West" and prevAction == "East") or (action == "East" and prevAction == "West") or (action == "North" and prevAction == "South") or (action == "South" and prevAction == "North"):
-			# the next action is going back to previous location
-			# let's give it some random chane to go back or not
-			if random.random()>=self.go_backchance:
-				return True
-			else:
-				return False 
-		return False
-
-	def findWinState(self):
-		#go through all state to find the winning state
-		while self.nextToVisit:
-
-			#pop off the start as we are analysing it now
-			nextState,prevActions,score = self.nextToVisit.pop(0)
-			
-			# we visited this state, so record it
-			self.visited.append((nextState,prevActions,score))
-
-			gscore = len(prevActions) +1 #  moves it took to get to here. adding 1 because it take 1 more move to get to next state
-			gScore= 0 # setting it to 0 will give much better result here. 
-
-			#get possible actions for this state
-			for action in nextState.getLegalPacmanActions():
-
-				if not self.goingBack(action,prevActions):
-					possibleState = nextState.generatePacmanSuccessor(action)
-					self.count+=1
-
-					if possibleState is None:	
-						# we ran out of calls
-						# isWin state not found
-						return;
-					current_world  = World(possibleState)
-					current_pellets = current_world.countPellets()
-					hScore=self.start_score-current_pellets
-					fScore = -hScore+gScore
-					
-					if possibleState.isWin():
-						# we found the winningState, can exit
-						newaction = list(prevActions)
-						newaction.append(action)
-						self.winningState=((possibleState,newaction,fScore))
-						return;
-
-					if not possibleState.isLose():
-						#add to next to visit 
-						newaction = list(prevActions)
-						newaction.append(action)
-						#self.finalStateScore=possibleState.getScore() # no longer used?
-						self.nextToVisit.append((possibleState,newaction,fScore))
-
-			#sort based on FScore which is at position 2
-			self.nextToVisit.sort(key=lambda x: x[2])
-				
-		return;
-
-	# GetAction Function: Called with every frame
-
-	def getclosestGhost(self,state):
-		#get average distance to cloests ghost
-		ghosts = state.getGhostPositions()
-		pacman = state.getPacmanPosition()
-
-		distances =[]
-		sum = 0
-		for ghost in ghosts:
-			dis = abs(pacman[0]-ghost[0])+abs(pacman[1]-ghost[1])
-			sum+=dis
-			distances.append(dis)
-
-		averageDis = sum/len(distances)
-		return averageDis
-
-	def getAction(self, state):
-		# we are looking for the state.isWin() == true		
-		#check if there is danger
-		#legalAction = state.getLegalPacmanActions()
-
-
-		action = 'STOP'
-		if self.moveIndex<len(self.bestMoves):
-			action = self.bestMoves[self.moveIndex]
-			self.moveIndex+=1
-
-		averageGhostDis = self.getclosestGhost(state)
-		if averageGhostDis<=3:
-			#danger! many ghost nearby. high chance of ambush-- seek new path
-			print ('danger!')
-			self.generateAStarRoute(state)
-			if self.moveIndex<len(self.bestMoves):
-				action = self.bestMoves[self.moveIndex]
-				self.moveIndex+=1
-
-		possibleState= state.generatePacmanSuccessor(action)
-
-		if possibleState is not None and possibleState.isLose():
-			#the next move will kill pacman! avoid by recalculating Astar!
-			self.generateAStarRoute(state)
-			#print self.finalStateScore
-			if self.moveIndex<len(self.bestMoves):
-				action = self.bestMoves[self.moveIndex]
-				self.moveIndex+=1
-
-		if action == 'STOP':
-			# the action list ran out. generate new path again
-			print ('out of path')
-			self.go_backchance=0 # to avoid getting stuck. force don't go back
-			self.generateAStarRoute(state)
-			if len(self.bestMoves)>1:
-				# unstuck so reset
-				print ('unstuck reset go_backchance')
-				self.go_backchance=0.3
-			#print self.bestMoves
-			if self.moveIndex<len(self.bestMoves):
-				action = self.bestMoves[self.moveIndex]
-				self.moveIndex+=1
-
-
-		return action
-
-'''
-testing purpose from below. not used for final submission but just idea that
-- only generate new route if there is a better route than current route
-- so far it yields worse result than previous version
-- also testd MCTS with better heustric but Astar is superior so far
-'''
-
-class SuperiorAStarAgent3(Agent):
-	#version that does not advoid ghosts
-	#depreciated version
-
-	visited = [] # storing visited states
-	nextToVisit =[] #stores the state we should visit next. excluding previous state
-	winningState = None #storing the winning state
-	startState= None
-	bestMoves =None
-	moveIndex=0 
-	finalStateScore=0
-
-	count =0
-	# Initialization Function: Called one time when the game starts
-	def registerInitialState(self, state):
-		self.generateAStarRoute(state)
-		return
-
-	def resetStat(self):
-		self.visited = [] # storing visited states
-		self.nextToVisit =[] #stores the state we should visit next. excluding previous state
-		self.winningState = None #storing the winning state
-		self.startState= None
-		self.bestMoves =None
-		self.moveIndex=0
-
-	def generateAStarRoute(self, state):
-		print ('generate new route')
-		self.resetStat()
-		self.startState=state # starting state
-		self.start_world = World(state)
-		self.start_score = self.start_world.countPellets() # starting world pellets
-		self.nextToVisit.append((state,[],self.start_score))
-
-		#find max
-		self.findWinState()
-		if self.winningState is None:
-			#winningState is not found. just find lowest fScore
-			self.visited.sort(key=lambda x: x[2])#,len(x[1])))
-			self.bestMoves= self.visited[0]
-			self.bestMoves = self.bestMoves[1]
-		else:
-			#there is winning state
-			self.bestMoves = self.winningState[1]
-		return
-
-	def goingBack(self,action,prevActions):
-		#function to check if new direction will go back which is not what we want?
-		#without this function, we reach far less optimal state? As more generatePacmanSuccessor calls are needed
-
-		# if dont' want to use this function uncomment below:
-		#return False
-
-		if not prevActions:
-			return False
-		prevAction = prevActions[len(prevActions)-1]
-		if (action == "West" and prevAction == "East") or (action == "East" and prevAction == "West") or (action == "North" and prevAction == "South") or (action == "South" and prevAction == "North"):
-			# the next action is going back to previous location
-			# let's give it some random to go back or not
-			#return True
-			if random.random()>=0.3:
-				return True
-			else:
-				return False 
-		return False
-
-	def findWinState(self):
-		#go through all state to find the winning state
-		while self.nextToVisit:
-
-			#pop off the start as we are analysing it now
-			nextState,prevActions,score = self.nextToVisit.pop(0)
-			
-			# we visited this state, so record it
-			self.visited.append((nextState,prevActions,score))
-
-			gscore = len(prevActions) +1 #  moves it took to get to here. adding 1 because it take 1 more move to get to next state
-			gScore= 0 # setting it to 0 will give much better result here. 
-
-			#get possible actions for this state
-			for action in nextState.getLegalPacmanActions():
-
-				if not self.goingBack(action,prevActions):
-					possibleState = nextState.generatePacmanSuccessor(action)
-					self.count+=1
-
-					if possibleState is None:	
-						# we ran out of calls
-						# isWin state not found
-						return;
-					current_world  = World(possibleState)
-					current_pellets = current_world.countPellets()
-					hScore=self.start_score-current_pellets
-					fScore = -hScore+gScore
-					
-					if possibleState.isWin():
-						# we found the winningState, can exit
-						newaction = list(prevActions)
-						newaction.append(action)
-						self.winningState=((possibleState,newaction,fScore))
-						return;
-
-					if not possibleState.isLose():
-						#add to next to visit 
-						newaction = list(prevActions)
-						newaction.append(action)
-						self.finalStateScore=possibleState.getScore()
-						self.nextToVisit.append((possibleState,newaction,fScore))
-
-			#sort based on FScore which is at position 2
-			self.nextToVisit.sort(key=lambda x: x[2])
-				
-		return;
-
-	# GetAction Function: Called with every frame
-	def getAction(self, state):
-		# we are looking for the state.isWin() == true		
-		#check if there is danger
-		legalAction = state.getLegalPacmanActions()
-
-
-		action = 'STOP'
-		if self.moveIndex<len(self.bestMoves):
-			action = self.bestMoves[self.moveIndex]
-			self.moveIndex+=1
-
-
-		possibleState= state.generatePacmanSuccessor(action)
-		if possibleState is not None and possibleState.isLose():
-			#the next move will kill pacman! avoid by recalculating Astar!
-			self.generateAStarRoute(state)
-			print (self.finalStateScore)
-			if self.moveIndex<len(self.bestMoves):
-				action = self.bestMoves[self.moveIndex]
-				self.moveIndex+=1
-		if action == 'STOP':
-			# the action list ran out. generate new path again
-			print ('out of path')
-			
-			self.generateAStarRoute(state)
-			print (self.bestMoves)
-			if self.moveIndex<len(self.bestMoves):
-				action = self.bestMoves[self.moveIndex]
-				self.moveIndex+=1
-		return action
-
-def findAstarPath(state):
-
-	visited = [] # storing visited states
-	nextToVisit =[] #stores the state we should visit next. excluding previous state
-	winningState = None #storing the winning state
-	startState= state
-	bestMoves =None
-	finalStateScore=0
-
-	def goingBack(action,prevActions):
-		#function to check if new direction will go back which is not what we want?
-		#without this function, we reach far less optimal state? As more generatePacmanSuccessor calls are needed
-
-		# if dont' want to use this function uncomment below:
-		#return False
-
-		if not prevActions:
-			return False
-		prevAction = prevActions[len(prevActions)-1]
-		if (action == "West" and prevAction == "East") or (action == "East" and prevAction == "West") or (action == "North" and prevAction == "South") or (action == "South" and prevAction == "North"):
-			# the next action is going back to previous location
-			# let's give it some random to go back or not
-			return True
-			if random.random()>=0.3:
-				return True
-			else:
-				return False 
-		return False
-
-	start_world = World(state)
-	start_score = start_world.countPellets() # starting world pellets
-	nextToVisit.append((state,[],start_score))
-
-	#find max
-	while nextToVisit:
-		#pop off the start as we are analysing it now
-		nextState,prevActions,score = nextToVisit.pop(0)
-		
-		# we visited this state, so record it
-		visited.append((nextState,prevActions,score))
-
-		#NOTE: there are 2 implementations. with gscore on, the pacman will get suck as next move is same score as previous. 
-		#next state h will decrease by 1 g will increment by 1. so will not change f score
-		
-		#Comment unwanted one out
-		gscore = len(prevActions) +1 #  moves it took to get to here. adding 1 because it take 1 more move to get to next state
-		gScore= 0 # setting it to 0 will give much better result here. 
-
-		#get possible actions for this state
-		for action in nextState.getLegalPacmanActions():
-
-			if not goingBack(action,prevActions):
-				possibleState = nextState.generatePacmanSuccessor(action)
-
-				if possibleState is None:	
-					# we ran out of calls
-					# isWin state not found
-					break;
-				current_world  = World(possibleState)
-				current_pellets = current_world.countPellets()
-				hScore=start_score-current_pellets
-				fScore = -hScore+gScore
-				
-				if possibleState.isWin():
-					# we found the winningState, can exit
-					newaction = list(prevActions)
-					newaction.append(action)
-					winningState=((possibleState,newaction,fScore))
-					break;
-
-				if not possibleState.isLose():
-					#add to next to visit 
-					newaction = list(prevActions)
-					newaction.append(action)
-					finalStateScore=hScore
-					nextToVisit.append((possibleState,newaction,fScore))
-
-		#sort based on FScore which is at position 2
-		nextToVisit.sort(key=lambda x: x[2])
-
-	#print finalStateScore
-
-
-	if winningState is None:
-		#winningState is not found. just find lowest fScore
-		visited.sort(key=lambda x: x[2])#,len(x[1])))
-		bestMoves= visited[0]
-		bestMoves = bestMoves[1]
-	else:
-		#there is winning state
-		bestMoves = winningState[1]
-	finalStateScore=visited[0][2]
-	return bestMoves,finalStateScore,visited
-
-
-class SuperiorAStarAgent2(Agent):
-
-	visited = [] # storing visited states
-	nextToVisit =[] #stores the state we should visit next. excluding previous state
-	winningState = None #storing the winning state
-	startState= None
-	bestMoves =None
-	moveIndex=0 
-	finalStateScore=0
-
-	count =0
-	# Initialization Function: Called one time when the game starts
-	def registerInitialState(self, state):
-		
-		self.generateAStarRoute(state)
-		return
-
-	def resetStat(self):
-		self.visited = [] # storing visited states
-		self.nextToVisit =[] #stores the state we should visit next. excluding previous state
-		self.winningState = None #storing the winning state
-		self.startState= None
-		self.bestMoves =None
-		self.moveIndex=0
-
-	def generateAStarRoute(self, state):
-		#print 'generate new route'
-		
-		self.startState=state # starting state
-		self.start_world = World(state)
-		self.start_score = self.start_world.countPellets() # starting world pellets
-		self.nextToVisit.append((state,[],self.start_score))
-
-		#find max
-		self.findWinState()
-		if self.winningState is None:
-			#winningState is not found. just find lowest fScore
-			self.visited.sort(key=lambda x: x[2])#,len(x[1])))
-			self.bestMoves= self.visited[0]
-			self.bestMoves = self.bestMoves[1]
-		else:
-			#there is winning state
-			self.bestMoves = self.winningState[1]
-		return
-
-	def goingBack(self,action,prevActions):
-		#function to check if new direction will go back which is not what we want?
-		#without this function, we reach far less optimal state? As more generatePacmanSuccessor calls are needed
-
-		# if dont' want to use this function uncomment below:
-		#return False
-
-		if not prevActions:
-			return False
-		prevAction = prevActions[len(prevActions)-1]
-		if (action == "West" and prevAction == "East") or (action == "East" and prevAction == "West") or (action == "North" and prevAction == "South") or (action == "South" and prevAction == "North"):
-			# the next action is going back to previous location
-			# let's give it some random to go back or not
-			#return True
-			if random.random()>=0.3:
-				return True
-			else:
-				return False 
-		return False
-
-	def findWinState(self):
-		#go through all state to find the winning state
-		while self.nextToVisit:
-
-			#pop off the start as we are analysing it now
-			nextState,prevActions,score = self.nextToVisit.pop(0)
-			
-			# we visited this state, so record it
-			self.visited.append((nextState,prevActions,score))
-
-			#NOTE: there are 2 implementations. with gscore on, the pacman will get suck as next move is same score as previous. 
-			#next state h will decrease by 1 g will increment by 1. so will not change f score
-			
-			#Comment unwanted one out
-			gscore = len(prevActions) +1 #  moves it took to get to here. adding 1 because it take 1 more move to get to next state
-			gScore= 0 # setting it to 0 will give much better result here. 
-
-			#get possible actions for this state
-			for action in nextState.getLegalPacmanActions():
-
-				if not self.goingBack(action,prevActions):
-					possibleState = nextState.generatePacmanSuccessor(action)
-					self.count+=1
-
-					if possibleState is None:	
-						# we ran out of calls
-						# isWin state not found
-						return;
-					current_world  = World(possibleState)
-					current_pellets = current_world.countPellets()
-					hScore=self.start_score-current_pellets
-					fScore = -hScore+gScore
-					
-					if possibleState.isWin():
-						# we found the winningState, can exit
-						newaction = list(prevActions)
-						newaction.append(action)
-						self.winningState=((possibleState,newaction,fScore))
-						return;
-
-					if not possibleState.isLose():
-						#add to next to visit 
-						newaction = list(prevActions)
-						newaction.append(action)
-						#self.finalStateScore=hScore
-						self.nextToVisit.append((possibleState,newaction,fScore))
-
-			#sort based on FScore which is at position 2
-			self.nextToVisit.sort(key=lambda x: x[2])
-				
-		return;
-
-	# GetAction Function: Called with every frame
-	def getAction(self, state):
-		# we are looking for the state.isWin() == true		
-		#check if there is danger
-		legalAction = state.getLegalPacmanActions()
-		#print self.visited[0]
-		self.finalStateScore=self.visited[0][2]
-
-		tempMoves, score,visited = findAstarPath(state)
-		#check if there is a better path
-		#score>self.finalStateScore
-		if score>self.finalStateScore:
-			#there is better path
-			print ('found better route:  ',score,self.finalStateScore)
-			self.resetStat()
-			self.bestMoves=tempMoves
-			self.finalStateScore=score
-			self.visited=visited
-
-
-		action = 'STOP' #default
-		if self.moveIndex<len(self.bestMoves):
-			action = self.bestMoves[self.moveIndex]
-			self.moveIndex+=1
-
-		possibleState= state.generatePacmanSuccessor(action)
-		if possibleState is not None and possibleState.isLose():
-			#the next move will kill pacman! avoid by recalculating Astar!
-			self.resetStat()
-			self.generateAStarRoute(state)
-			#print self.finalStateScore
-			if self.moveIndex<len(self.bestMoves):
-				action = self.bestMoves[self.moveIndex]
-				self.moveIndex+=1
-		return action
+
+# game.py
+# -------
+# Licensing Information: Please do not distribute or publish solutions to this
+# project. You are free to use and extend these projects for educational
+# purposes. The Pacman AI projects were developed at UC Berkeley, primarily by
+# John DeNero (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
+# For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
+
+from util import *
+import time
+import os
+import traceback
+import sys
+
+#######################
+# Parts worth reading #
+#######################
+
+
+class Agent:
+    """
+    An agent must define a getAction method, but may also define the
+    following methods which will be called if they exist:
+
+    def registerInitialState(self, state): # inspects the starting state
+    """
+
+    def __init__(self, index=0):
+        self.index = index
+
+    def getAction(self, state):
+        """
+        The Agent will receive a GameState (from either {pacman, capture, sonar}.py) and
+        must return an action from Directions.{North, South, East, West, Stop}
+        """
+        raiseNotDefined()
+
+
+class Directions:
+    NORTH = 'North'
+    SOUTH = 'South'
+    EAST = 'East'
+    WEST = 'West'
+    STOP = 'Stop'
+
+    LEFT = {NORTH: WEST,
+            SOUTH: EAST,
+            EAST:  NORTH,
+            WEST:  SOUTH,
+            STOP:  STOP}
+
+    RIGHT = dict([(y, x) for x, y in list(LEFT.items())])
+
+    REVERSE = {NORTH: SOUTH,
+               SOUTH: NORTH,
+               EAST: WEST,
+               WEST: EAST,
+               STOP: STOP}
+
+
+class Configuration:
+    """
+    A Configuration holds the (x,y) coordinate of a character, along with its
+    traveling direction.
+
+    The convention for positions, like a graph, is that (0,0) is the lower left corner, x increases
+    horizontally and y increases vertically.  Therefore, north is the direction of increasing y, or (0,1).
+    """
+
+    def __init__(self, pos, direction):
+        self.pos = pos
+        self.direction = direction
+
+    def getPosition(self):
+        return (self.pos)
+
+    def getDirection(self):
+        return self.direction
+
+    def isInteger(self):
+        x, y = self.pos
+        return x == int(x) and y == int(y)
+
+    def __eq__(self, other):
+        if other == None:
+            return False
+        return (self.pos == other.pos and self.direction == other.direction)
+
+    def __hash__(self):
+        x = hash(self.pos)
+        y = hash(self.direction)
+        return hash(x + 13 * y)
+
+    def __str__(self):
+        return "(x,y)="+str(self.pos)+", "+str(self.direction)
+
+    def generateSuccessor(self, vector):
+        """
+        Generates a new configuration reached by translating the current
+        configuration by the action vector.  This is a low-level call and does
+        not attempt to respect the legality of the movement.
+
+        Actions are movement vectors.
+        """
+        x, y = self.pos
+        dx, dy = vector
+        direction = Actions.vectorToDirection(vector)
+        if direction == Directions.STOP:
+            direction = self.direction  # There is no stop direction
+        return Configuration((x + dx, y+dy), direction)
+
+
+class AgentState:
+    """
+    AgentStates hold the state of an agent (configuration, speed, scared, etc).
+    """
+
+    def __init__(self, startConfiguration, isPacman):
+        self.start = startConfiguration
+        self.configuration = startConfiguration
+        self.isPacman = isPacman
+        self.scaredTimer = 0
+        # state below potentially used for contest only
+        self.numCarrying = 0
+        self.numReturned = 0
+
+    def __str__(self):
+        if self.isPacman:
+            return "Pacman: " + str(self.configuration)
+        else:
+            return "Ghost: " + str(self.configuration)
+
+    def __eq__(self, other):
+        if other == None:
+            return False
+        return self.configuration == other.configuration and self.scaredTimer == other.scaredTimer
+
+    def __hash__(self):
+        return hash(hash(self.configuration) + 13 * hash(self.scaredTimer))
+
+    def copy(self):
+        state = AgentState(self.start, self.isPacman)
+        state.configuration = self.configuration
+        state.scaredTimer = self.scaredTimer
+        state.numCarrying = self.numCarrying
+        state.numReturned = self.numReturned
+        return state
+
+    def getPosition(self):
+        if self.configuration == None:
+            return None
+        return self.configuration.getPosition()
+
+    def getDirection(self):
+        return self.configuration.getDirection()
+
+
+class Grid:
+    """
+    A 2-dimensional array of objects backed by a list of lists.  Data is accessed
+    via grid[x][y] where (x,y) are positions on a Pacman map with x horizontal,
+    y vertical and the origin (0,0) in the bottom left corner.
+
+    The __str__ method constructs an output that is oriented like a pacman board.
+    """
+
+    def __init__(self, width, height, initialValue=False, bitRepresentation=None):
+        if initialValue not in [False, True]:
+            raise Exception('Grids can only contain booleans')
+        self.CELLS_PER_INT = 30
+
+        self.width = width
+        self.height = height
+        self.data = [[initialValue for y in range(
+            height)] for x in range(width)]
+        if bitRepresentation:
+            self._unpackBits(bitRepresentation)
+
+    def __getitem__(self, i):
+        return self.data[i]
+
+    def __setitem__(self, key, item):
+        self.data[key] = item
+
+    def __str__(self):
+        out = [[str(self.data[x][y])[0] for x in range(self.width)]
+               for y in range(self.height)]
+        out.reverse()
+        return '\n'.join([''.join(x) for x in out])
+
+    def __eq__(self, other):
+        if other == None:
+            return False
+        return self.data == other.data
+
+    def __hash__(self):
+        # return hash(str(self))
+        base = 1
+        h = 0
+        for l in self.data:
+            for i in l:
+                if i:
+                    h += base
+                base *= 2
+        return hash(h)
+
+    def copy(self):
+        g = Grid(self.width, self.height)
+        g.data = [x[:] for x in self.data]
+        return g
+
+    def deepCopy(self):
+        return self.copy()
+
+    def shallowCopy(self):
+        g = Grid(self.width, self.height)
+        g.data = self.data
+        return g
+
+    def count(self, item=True):
+        return sum([x.count(item) for x in self.data])
+
+    def asList(self, key=True):
+        list = []
+        for x in range(self.width):
+            for y in range(self.height):
+                if self[x][y] == key:
+                    list.append((x, y))
+        return list
+
+    def packBits(self):
+        """
+        Returns an efficient int list representation
+
+        (width, height, bitPackedInts...)
+        """
+        bits = [self.width, self.height]
+        currentInt = 0
+        for i in range(self.height * self.width):
+            bit = self.CELLS_PER_INT - (i % self.CELLS_PER_INT) - 1
+            x, y = self._cellIndexToPosition(i)
+            if self[x][y]:
+                currentInt += 2 ** bit
+            if (i + 1) % self.CELLS_PER_INT == 0:
+                bits.append(currentInt)
+                currentInt = 0
+        bits.append(currentInt)
+        return tuple(bits)
+
+    def _cellIndexToPosition(self, index):
+        x = index / self.height
+        y = index % self.height
+        return x, y
+
+    def _unpackBits(self, bits):
+        """
+        Fills in data from a bit-level representation
+        """
+        cell = 0
+        for packed in bits:
+            for bit in self._unpackInt(packed, self.CELLS_PER_INT):
+                if cell == self.width * self.height:
+                    break
+                x, y = self._cellIndexToPosition(cell)
+                self[x][y] = bit
+                cell += 1
+
+    def _unpackInt(self, packed, size):
+        bools = []
+        if packed < 0:
+            raise ValueError("must be a positive integer")
+        for i in range(size):
+            n = 2 ** (self.CELLS_PER_INT - i - 1)
+            if packed >= n:
+                bools.append(True)
+                packed -= n
+            else:
+                bools.append(False)
+        return bools
+
+
+def reconstituteGrid(bitRep):
+    if type(bitRep) is not type((1, 2)):
+        return bitRep
+    width, height = bitRep[:2]
+    return Grid(width, height, bitRepresentation=bitRep[2:])
+
+####################################
+# Parts you shouldn't have to read #
+####################################
+
+
+class Actions:
+    """
+    A collection of static methods for manipulating move actions.
+    """
+    # Directions
+    _directions = {Directions.WEST:  (-1, 0),
+                   Directions.STOP:  (0, 0),
+                   Directions.EAST:  (1, 0),
+                   Directions.NORTH: (0, 1),
+                   Directions.SOUTH: (0, -1)}
+
+    _directionsAsList = [('West', (-1, 0)), ('Stop', (0, 0)), ('East', (1, 0)), ('North', (0, 1)), ('South', (0, -1))]
+
+    TOLERANCE = .001
+
+    def reverseDirection(action):
+        if action == Directions.NORTH:
+            return Directions.SOUTH
+        if action == Directions.SOUTH:
+            return Directions.NORTH
+        if action == Directions.EAST:
+            return Directions.WEST
+        if action == Directions.WEST:
+            return Directions.EAST
+        return action
+    reverseDirection = staticmethod(reverseDirection)
+
+    def vectorToDirection(vector):
+        dx, dy = vector
+        if dy > 0:
+            return Directions.NORTH
+        if dy < 0:
+            return Directions.SOUTH
+        if dx < 0:
+            return Directions.WEST
+        if dx > 0:
+            return Directions.EAST
+        return Directions.STOP
+    vectorToDirection = staticmethod(vectorToDirection)
+
+    def directionToVector(direction, speed=1.0):
+        dx, dy = Actions._directions[direction]
+        return (dx * speed, dy * speed)
+    directionToVector = staticmethod(directionToVector)
+
+    def getPossibleActions(config, walls):
+        possible = []
+        x, y = config.pos
+        x_int, y_int = int(x + 0.5), int(y + 0.5)
+
+        # In between grid points, all agents must continue straight
+        if (abs(x - x_int) + abs(y - y_int) > Actions.TOLERANCE):
+            return [config.getDirection()]
+
+        for dir, vec in Actions._directionsAsList:
+            dx, dy = vec
+            next_y = y_int + dy
+            next_x = x_int + dx
+            if not walls[next_x][next_y]:
+                possible.append(dir)
+
+        return possible
+
+    getPossibleActions = staticmethod(getPossibleActions)
+
+    def getLegalNeighbors(position, walls):
+        x, y = position
+        x_int, y_int = int(x + 0.5), int(y + 0.5)
+        neighbors = []
+        for dir, vec in Actions._directionsAsList:
+            dx, dy = vec
+            next_x = x_int + dx
+            if next_x < 0 or next_x == walls.width:
+                continue
+            next_y = y_int + dy
+            if next_y < 0 or next_y == walls.height:
+                continue
+            if not walls[next_x][next_y]:
+                neighbors.append((next_x, next_y))
+        return neighbors
+    getLegalNeighbors = staticmethod(getLegalNeighbors)
+
+    def getSuccessor(position, action):
+        dx, dy = Actions.directionToVector(action)
+        x, y = position
+        return (x + dx, y + dy)
+    getSuccessor = staticmethod(getSuccessor)
+
+
+class GameStateData:
+
+    def __init__(self, prevState=None):
+        """
+        Generates a new data packet by copying information from its predecessor.
+        """
+        if prevState != None:
+            self.food = prevState.food.shallowCopy()
+            self.capsules = prevState.capsules[:]
+            self.agentStates = self.copyAgentStates(prevState.agentStates)
+            self.layout = prevState.layout
+            self._eaten = prevState._eaten
+            self.score = prevState.score
+
+        self._foodEaten = None
+        self._foodAdded = None
+        self._capsuleEaten = None
+        self._agentMoved = None
+        self._lose = False
+        self._win = False
+        self.scoreChange = 0
+
+    def deepCopy(self):
+        state = GameStateData(self)
+        state.food = self.food.deepCopy()
+        state.layout = self.layout.deepCopy()
+        state._agentMoved = self._agentMoved
+        state._foodEaten = self._foodEaten
+        state._foodAdded = self._foodAdded
+        state._capsuleEaten = self._capsuleEaten
+        return state
+
+    def copyAgentStates(self, agentStates):
+        copiedStates = []
+        for agentState in agentStates:
+            copiedStates.append(agentState.copy())
+        return copiedStates
+
+    def __eq__(self, other):
+        """
+        Allows two states to be compared.
+        """
+        if other == None:
+            return False
+        # TODO Check for type of other
+        if not self.agentStates == other.agentStates:
+            return False
+        if not self.food == other.food:
+            return False
+        if not self.capsules == other.capsules:
+            return False
+        if not self.score == other.score:
+            return False
+        return True
+
+    def __hash__(self):
+        """
+        Allows states to be keys of dictionaries.
+        """
+        for i, state in enumerate(self.agentStates):
+            try:
+                int(hash(state))
+            except TypeError as e:
+                print(e)
+                # hash(state)
+        return int((hash(tuple(self.agentStates)) + 13*hash(self.food) + 113 * hash(tuple(self.capsules)) + 7 * hash(self.score)) % 1048575)
+
+    def __str__(self):
+        width, height = self.layout.width, self.layout.height
+        map = Grid(width, height)
+        if type(self.food) == type((1, 2)):
+            self.food = reconstituteGrid(self.food)
+        for x in range(width):
+            for y in range(height):
+                food, walls = self.food, self.layout.walls
+                map[x][y] = self._foodWallStr(food[x][y], walls[x][y])
+
+        for agentState in self.agentStates:
+            if agentState == None:
+                continue
+            if agentState.configuration == None:
+                continue
+            x, y = [int(i) for i in nearestPoint(agentState.configuration.pos)]
+            agent_dir = agentState.configuration.direction
+            if agentState.isPacman:
+                map[x][y] = self._pacStr(agent_dir)
+            else:
+                map[x][y] = self._ghostStr(agent_dir)
+
+        for x, y in self.capsules:
+            map[x][y] = 'o'
+
+        return str(map) + ("\nScore: %d\n" % self.score)
+
+    def _foodWallStr(self, hasFood, hasWall):
+        if hasFood:
+            return '.'
+        elif hasWall:
+            return '%'
+        else:
+            return ' '
+
+    def _pacStr(self, dir):
+        if dir == Directions.NORTH:
+            return 'v'
+        if dir == Directions.SOUTH:
+            return '^'
+        if dir == Directions.WEST:
+            return '>'
+        return '<'
+
+    def _ghostStr(self, dir):
+        return 'G'
+        if dir == Directions.NORTH:
+            return 'M'
+        if dir == Directions.SOUTH:
+            return 'W'
+        if dir == Directions.WEST:
+            return '3'
+        return 'E'
+
+    def initialize(self, layout, numGhostAgents):
+        """
+        Creates an initial game state from a layout array (see layout.py).
+        """
+        self.food = layout.food.copy()
+        #self.capsules = []
+        self.capsules = layout.capsules[:]
+        self.layout = layout
+        self.score = 0
+        self.scoreChange = 0
+
+        self.agentStates = []
+        numGhosts = 0
+        for isPacman, pos in layout.agentPositions:
+            if not isPacman:
+                if numGhosts == numGhostAgents:
+                    continue  # Max ghosts reached already
+                else:
+                    numGhosts += 1
+            self.agentStates.append(AgentState(
+                Configuration(pos, Directions.STOP), isPacman))
+        self._eaten = [False for a in self.agentStates]
+
+
+try:
+    import boinc
+    _BOINC_ENABLED = True
+except:
+    _BOINC_ENABLED = False
+
+
+class Game:
+    """
+    The Game manages the control flow, soliciting actions from agents.
+    """
+
+    def __init__(self, agents, display, rules, startingIndex=0, muteAgents=False, catchExceptions=False):
+        self.agentCrashed = False
+        self.agents = agents
+        self.display = display
+        self.rules = rules
+        self.startingIndex = startingIndex
+        self.gameOver = False
+        self.muteAgents = muteAgents
+        self.catchExceptions = catchExceptions
+        self.moveHistory = []
+        self.totalAgentTimes = [0 for agent in agents]
+        self.totalAgentTimeWarnings = [0 for agent in agents]
+        self.agentTimeout = False
+        import io
+        self.agentOutput = [io.StringIO() for agent in agents]
+
+    def getProgress(self):
+        if self.gameOver:
+            return 1.0
+        else:
+            return self.rules.getProgress(self)
+
+    def _agentCrash(self, agentIndex, quiet=False):
+        "Helper method for handling agent crashes"
+        if not quiet:
+            traceback.print_exc()
+        self.gameOver = True
+        self.agentCrashed = True
+        self.rules.agentCrash(self, agentIndex)
+
+    OLD_STDOUT = None
+    OLD_STDERR = None
+
+    def mute(self, agentIndex):
+        if not self.muteAgents:
+            return
+        global OLD_STDOUT, OLD_STDERR
+        import io
+        OLD_STDOUT = sys.stdout
+        OLD_STDERR = sys.stderr
+        sys.stdout = self.agentOutput[agentIndex]
+        sys.stderr = self.agentOutput[agentIndex]
+
+    def unmute(self):
+        if not self.muteAgents:
+            return
+        global OLD_STDOUT, OLD_STDERR
+        # Revert stdout/stderr to originals
+        sys.stdout = OLD_STDOUT
+        sys.stderr = OLD_STDERR
+
+    def run(self):
+        """
+        Main control loop for game play.
+        """
+        self.display.initialize(self.state.data)
+        self.numMoves = 0
+
+        # self.display.initialize(self.state.makeObservation(1).data)
+        # inform learning agents of the game start
+        for i in range(len(self.agents)):
+            agent = self.agents[i]
+            if not agent:
+                self.mute(i)
+                # this is a null agent, meaning it failed to load
+                # the other team wins
+                print("Agent %d failed to load" % i, file=sys.stderr)
+                self.unmute()
+                self._agentCrash(i, quiet=True)
+                return
+            if ("registerInitialState" in dir(agent)):
+                self.mute(i)
+                if self.catchExceptions:
+                    try:
+                        timed_func = TimeoutFunction(
+                            agent.registerInitialState, int(self.rules.getMaxStartupTime(i)))
+                        try:
+                            start_time = time.time()
+                            timed_func(self.state.deepCopy())
+                            time_taken = time.time() - start_time
+                            self.totalAgentTimes[i] += time_taken
+                        except TimeoutFunctionException:
+                            print("Agent %d ran out of time on startup!" %
+                                  i, file=sys.stderr)
+                            self.unmute()
+                            self.agentTimeout = True
+                            self._agentCrash(i, quiet=True)
+                            return
+                    except Exception as data:
+                        self._agentCrash(i, quiet=False)
+                        self.unmute()
+                        return
+                else:
+                    agent.registerInitialState(self.state.deepCopy())
+                # TODO: could this exceed the total time
+                self.unmute()
+
+        agentIndex = self.startingIndex
+        numAgents = len(self.agents)
+
+        while not self.gameOver:
+            # Fetch the next agent
+            agent = self.agents[agentIndex]
+            move_time = 0
+            skip_action = False
+            # Generate an observation of the state
+            if 'observationFunction' in dir(agent):
+                self.mute(agentIndex)
+                if self.catchExceptions:
+                    try:
+                        timed_func = TimeoutFunction(agent.observationFunction, int(
+                            self.rules.getMoveTimeout(agentIndex)))
+                        try:
+                            start_time = time.time()
+                            observation = timed_func(self.state.deepCopy())
+                        except TimeoutFunctionException:
+                            skip_action = True
+                        move_time += time.time() - start_time
+                        self.unmute()
+                    except Exception as data:
+                        self._agentCrash(agentIndex, quiet=False)
+                        self.unmute()
+                        return
+                else:
+                    observation = agent.observationFunction(
+                        self.state.deepCopy())
+                self.unmute()
+            else:
+                observation = self.state.deepCopy()
+
+            # Solicit an action
+            action = None
+            self.mute(agentIndex)
+            if self.catchExceptions:
+                try:
+                    timed_func = TimeoutFunction(agent.getAction, int(
+                        self.rules.getMoveTimeout(agentIndex)) - int(move_time))
+                    try:
+                        start_time = time.time()
+                        if skip_action:
+                            raise TimeoutFunctionException()
+                        action = timed_func(observation)
+                    except TimeoutFunctionException:
+                        print("Agent %d timed out on a single move!" %
+                              agentIndex, file=sys.stderr)
+                        self.agentTimeout = True
+                        self._agentCrash(agentIndex, quiet=True)
+                        self.unmute()
+                        return
+
+                    move_time += time.time() - start_time
+
+                    if move_time > self.rules.getMoveWarningTime(agentIndex):
+                        self.totalAgentTimeWarnings[agentIndex] += 1
+                        print("Agent %d took too long to make a move! This is warning %d" % (
+                            agentIndex, self.totalAgentTimeWarnings[agentIndex]), file=sys.stderr)
+                        if self.totalAgentTimeWarnings[agentIndex] > self.rules.getMaxTimeWarnings(agentIndex):
+                            print("Agent %d exceeded the maximum number of warnings: %d" % (
+                                agentIndex, self.totalAgentTimeWarnings[agentIndex]), file=sys.stderr)
+                            self.agentTimeout = True
+                            self._agentCrash(agentIndex, quiet=True)
+                            self.unmute()
+                            return
+
+                    self.totalAgentTimes[agentIndex] += move_time
+                    # print "Agent: %d, time: %f, total: %f" % (agentIndex, move_time, self.totalAgentTimes[agentIndex])
+                    if self.totalAgentTimes[agentIndex] > self.rules.getMaxTotalTime(agentIndex):
+                        print("Agent %d ran out of time! (time: %1.2f)" % (
+                            agentIndex, self.totalAgentTimes[agentIndex]), file=sys.stderr)
+                        self.agentTimeout = True
+                        self._agentCrash(agentIndex, quiet=True)
+                        self.unmute()
+                        return
+                    self.unmute()
+                except Exception as data:
+                    self._agentCrash(agentIndex)
+                    self.unmute()
+                    return
+            else:
+                action = agent.getAction(observation)
+            self.unmute()
+
+            # Execute the action
+            self.moveHistory.append((agentIndex, action))
+            if self.catchExceptions:
+                try:
+                    self.state = self.state.generateSuccessor(
+                        agentIndex, action)
+                except Exception as data:
+                    self.mute(agentIndex)
+                    self._agentCrash(agentIndex)
+                    self.unmute()
+                    return
+            else:
+                self.state = self.state.generateSuccessor(agentIndex, action)
+
+            # Change the display
+            self.display.update(self.state.data)
+            ###idx = agentIndex - agentIndex % 2 + 1
+            ###self.display.update( self.state.makeObservation(idx).data )
+
+            # Allow for game specific conditions (winning, losing, etc.)
+            self.rules.process(self.state, self)
+            # Track progress
+            if agentIndex == numAgents + 1:
+                self.numMoves += 1
+            # Next agent
+            agentIndex = (agentIndex + 1) % numAgents
+
+            if _BOINC_ENABLED:
+                boinc.set_fraction_done(self.getProgress())
+
+        # inform a learning agent of the game result
+        for agentIndex, agent in enumerate(self.agents):
+            if "final" in dir(agent):
+                try:
+                    self.mute(agentIndex)
+                    agent.final(self.state)
+                    self.unmute()
+                except Exception as data:
+                    if not self.catchExceptions:
+                        raise
+                    self._agentCrash(agentIndex)
+                    self.unmute()
+                    return
+        self.display.finish()
