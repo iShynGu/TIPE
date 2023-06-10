@@ -19,7 +19,7 @@ def check_collision(state, position, direction):
             return True
     return False
 
-env = gym.make('MsPacman-v0', render_mode='rgb_array')
+env = gym.make('MsPacman-v0', render_mode='human')
 state = env.reset()
 
 done = False
