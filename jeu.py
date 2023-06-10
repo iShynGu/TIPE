@@ -22,7 +22,7 @@ def init_board():
 def init_game():
     res={}
     res["board"]=init_board()
-    res["pacman"]=[3,3]
+    res["pacman"]=[5,4]
     res["f"]=[1,1]
     res["nbr_vies"]=3
     res["score"]=0
@@ -94,7 +94,7 @@ while not fin_partie(state):
         affiche(state)
         print()
         time.sleep(0.5)
-    state["pacman"]=[3,3]
+    state["pacman"]=[5,4]
     state["f"]=[1,1]
     reset_map(u,state)
     u+=1
