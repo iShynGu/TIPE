@@ -22,14 +22,14 @@ def init_board():
 def init_game():
     res={}
     res["board"]=init_board()
-    res["pacman"]=[5,4]
+    res["pacman"]=[4,6]
     res["f"]=[1,1]
     res["nbr_vies"]=3
     res["score"]=0
     return res
     
 def affiche(etat):
-    board=board_avec_persos(etat,[["pacman","P"],["f","F"]])
+    board=board_avec_persos(etat,[["pacman","ᗧ"],["f","ᗣ"]])
     for line in board:
         for x in line:
             print(x, end='')
@@ -67,7 +67,8 @@ def fin_partie(etat):
 def coup_possible(etat,perso):
     PosP=etat[perso]
     board=etat["board"]
-    mouvement=[[1,0],[0,1],[-1,0],[0,-1]]
+    mouvement=[[-1,0],[0,1],[1,0],[0,-1]]
+    #haut,droite,bas,gauche
     res=[]
     for mouv in mouvement:
         newpos=[PosP[0]+mouv[0],PosP[1]+mouv[1]]
@@ -94,7 +95,7 @@ while not fin_partie(state):
         affiche(state)
         print()
         time.sleep(0.5)
-    state["pacman"]=[5,4]
+    state["pacman"]=[4,6]
     state["f"]=[1,1]
     reset_map(u,state)
     u+=1
