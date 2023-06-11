@@ -4,7 +4,7 @@ import numpy as np
 import heapdict as hd
 import cartes_pac as map
 
-carte=map.map2
+carte=map.map3
 
 
 depart_pacman=carte["pac"]
