@@ -1,11 +1,19 @@
+def victoire(state):
+    board=state["board"]
+    for i in range(len(board)):
+        for j in board[i]:
+            if j=="•":
+                return False
+    return True
+
 def init_board():
     board_s=[
-"************",
-"*..........*",
-"*.*.**..*..*",
-"*.*.*...**.*",
-"*..........*",
-"************"
+"■■■■■■■■■■■■",
+"■••••••••••■",
+"■•■•■■••■••■",
+"■•■•■•••■■•■",
+"■••••••••••■",
+"■■■■■■■■■■■■"
 ]
     res=[]
     for line in board_s:
@@ -15,6 +23,6 @@ def init_board():
         res.append(res_ligne)
     return res
 
-
 board=init_board()
-print(board[4][6])
+
+print(True == victoire({"board" : board}))
