@@ -4,7 +4,7 @@ import numpy as np
 import heapdict as hd
 import cartes_pac as map
 
-carte=map.map5
+carte=map.map1
 
 
 depart_pacman=carte["pac"]
@@ -94,9 +94,23 @@ def meilleur_coup_pac(etat):
             max_dist=dist
     return possible_moves[max_ind]
 
-def heuristique(state):
-    x1, y1 = state["f"]
-    x2, y2 = state["pacman"]
+
+def get_score(etat):
+    PosP=etat["pacman"]
+    possible_moves=coup_possible(etat,PosP)
+    board=etat["board"]
+    res=[]
+    for move in possible_moves:
+        newpos=[PosP[0]+move[0],PosP[1]+move[1]]
+        if board[newpos[0]][newpos[1]]=="•":
+            res.append(move)
+    return res
+
+
+
+def heuristique(etat):
+    x1, y1 = etat["f"]
+    x2, y2 = etat["pacman"]
     return np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 
@@ -174,7 +188,10 @@ while not fin_partie(state) and not victoire(state):
     affiche(state)
     time.sleep(1)
     while not vie_en_moins(state):
-        i,j=meilleur_coup_pac(state)
+        if heuristique(state)>2 and len(get_score(state))>0:
+            i,j=get_score(state)[0]
+        else:
+            i,j=meilleur_coup_pac(state)
         #k,l=coup_possible(state,state["f"])[0]
         k,l=astar_for_ghost(state)
         deplace(state,"pacman",i,j)
