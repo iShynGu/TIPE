@@ -4,7 +4,7 @@ import numpy as np
 import heapdict as hd
 import cartes_pac as map
 
-carte=map.map1
+carte=map.map5
 
 
 depart_pacman=carte["pac"]
@@ -107,34 +107,26 @@ def get_score(etat):
     return res
 
 
-
 def heuristique(etat):
     x1, y1 = etat["f"]
     x2, y2 = etat["pacman"]
     return np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 
-
 def astar_for_ghost(etat):
     debut = tuple(etat["f"])
     objectif = tuple(etat["pacman"])
-    
     atraiter = hd.heapdict()
     atraiter[debut] = 0
-    
     parent = {}
     d = {}
     parent[debut] = None
     d[debut] = 0
-    
     while len(atraiter)>0:
         x,fx = atraiter.popitem()
         position=list(x)
-        
         if x == objectif:
             break
-        
-        
         for coup in coup_possible(etat, position):
             distance = d[x] + 1
             voisin=[position[0]+coup[0],position[1]+coup[1]]
@@ -144,7 +136,6 @@ def astar_for_ghost(etat):
                 nouv_dist = distance + heuristique({"f": voisin, "pacman": list(objectif)})
                 atraiter[clef] = nouv_dist
                 parent[clef] = x
-    
     trajet = chemin(parent, debut, objectif)
     if len(trajet) > 1:
         return trajet[1]
@@ -159,9 +150,6 @@ def chemin(parent, debut, objectif):
         path.append(x)
     path.reverse()
     return path
-            
-        
-    
 
 
 def victoire(state):
@@ -200,7 +188,7 @@ while not fin_partie(state) and not victoire(state):
         mange_fruit(state)
         affiche(state)
         print()
-        time.sleep(0.5)
+        time.sleep(0.05)
     state["pacman"]=depart_pacman
     state["f"]=depart_fantome
     reset_map(u,state)
