@@ -105,6 +105,8 @@ def get_score(etat):
         if board[newpos[0]][newpos[1]]=="•":
             res.append(move)
     return res
+#faire dijkstra pour le get_score
+
 
 
 def heuristique(etat):
@@ -188,7 +190,7 @@ while not fin_partie(state) and not victoire(state):
         mange_fruit(state)
         affiche(state)
         print()
-        time.sleep(0.05)
+        time.sleep(0.1)
     state["pacman"]=depart_pacman
     state["f"]=depart_fantome
     reset_map(u,state)
