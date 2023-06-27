@@ -1,4 +1,5 @@
 import jeu as jeu
+import numpy as np
 
 class Node:
     def __init__(self,etat):
@@ -8,41 +9,64 @@ class Node:
         self.played=0
         self.children=jeu.coup_possible(etat,etat["pacman"])
         self.parent=None
+        self.depth=0
     
+    def enfant(self,parent1):
+        self.etat=parent1.etat
+        self.win=0
+        self.lose=0
+        self.played=0
+        self.children=[]
+        self.parent=parent1
+        self.depth=parent1.depth + 1
     
-    def est_feuille(self):
-        if len(self.children)==0:
-            return True
-        return False
+    def create_child(self):
+        parent=self
+        child=self.enfant(self,parent)
+        self.children.append(child)
+
+    
+def est_feuille(node):
+    if len(node.children)==0:
+        return True
+    return False
     
 
-def selection(node):
+def enfants(node):
     childs=node.children
     for child in childs:
         child.parent=node
+        child.depth=node.depth+1
     if node.est_feuille():
-        return Node
+        return node
     return node.best_child()
 
+def uct(node):
+    wi=node.win
+    ni=node.depth
+    t=len(node.children)
+    return (wi/ni + np.sqrt(t/ni))
 
 
+def selection(node):
+    enfants=node.children
+    ind=0
+    max=uct(enfants[0])
+    for i in range(len(enfants)):
+        if uct(enfants[i])>max:
+            ind=i
+            max=uct(enfants[i])
+    if est_feuille(enfants[ind]):
+        return enfants[ind]
+    return selection(enfants[ind])
+
+def expansion (node):
+    
+    
 
 
 def rollout(node):
-    state=node.etat
-    while not jeu.vie_en_moins(state) and not jeu.victoire(state):
-        i,j=jeu.get_score(state)
-        k,l=jeu.astar_for_ghost(state)
-        jeu.deplace(state,"pacman",i,j)
-        state["f"]=[k,l]
-        jeu.mange_fruit(state)
-    node.played+=1
-    if jeu.vie_en_moins(state):
-        node.lose+=1
-        return "lose"
-    else:
-        node.win+=1
-        return "win"
+    
     
 
 def backpropagation(self,result):
