@@ -1,5 +1,54 @@
 import jeu as jeu
 import numpy as np
+from random import choice
+
+class MCTS:
+
+
+    def __init__(self):
+        self.Q=dict()
+        self.N=dict()
+        self.children = dict()
+
+
+    def selection(self,node):
+        pass
+
+
+class PacManBoard(Node):
+    def find_children(etat):
+        position=etat["pacman"]
+        if jeu.coup_possible(etat,position)==[]:   
+            return set()
+        return jeu.coup_possible(etat,position)
+
+
+    def find_random_child(etat):
+        if jeu.coup_possible(etat,position)==[]:   
+            return None
+        position=etat["pacman"]
+        i,j=choice(jeu.coup_possible(etat,position))
+        return jeu.deplace(etat,"pacman",i,j)
+
+
+    def reward(etat):
+        if jeu.vie_en_moins(etat):
+            return 0
+        if jeu.victoire(etat):
+            return 1
+        else:
+            return 0
+    
+    
+
+
+
+
+
+
+
+
+
 
 class Node:
     def __init__(self,etat):
