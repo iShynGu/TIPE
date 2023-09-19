@@ -1,18 +1,35 @@
 import jeu as jeu
 import numpy as np
 from random import choice
+from collections import defaultdict
+
 
 class MCTS:
 
 
     def __init__(self):
-        self.Q=dict()
-        self.N=dict()
+        self.Q=defaultdict(int)
+        self.N=defaultdict(int)
         self.children = dict()
 
 
     def selection(self,node):
+        enfants=node.children
+        ind=0
+        max=uct(enfants[0])
+        for i in range(len(enfants)):
+            if uct(enfants[i])>max:
+                ind=i
+                max=uct(enfants[i])
+        if node.est_feuille(enfants[ind]):
+            return enfants[ind]
+        return selection(enfants[ind])
+
+    def expansion(self):
         pass
+
+    def rollout(self,node):
+        
 
 
 class PacManBoard(Node):
@@ -51,14 +68,16 @@ class PacManBoard(Node):
 
 
 class Node:
-    def __init__(self,etat):
+    def __init__(self,etat,parent=None):
         self.etat=etat
-        self.win=0
-        self.lose=0
+        self.resultat=defaultdict(int)
+        self.resultat[1]=0
+        self.resultat[-1]=0
         self.played=0
-        self.children=jeu.coup_possible(etat,etat["pacman"])
-        self.parent=None
+        self.children=[]
+        self.parent=parent
         self.depth=0
+        return
     
     def enfant(self,parent1):
         self.etat=parent1.etat
@@ -75,10 +94,10 @@ class Node:
         self.children.append(child)
 
     
-def est_feuille(node):
-    if len(node.children)==0:
-        return True
-    return False
+    def est_feuille(self):
+        if len(self.children)==0:
+            return True
+        return False
     
 
 def enfants(node):
@@ -111,6 +130,7 @@ def selection(node):
 
 def expansion (node):
     
+
     
 
 
