@@ -3,7 +3,109 @@ import time
 import numpy as np
 import heapdict as hd
 import cartes_pac as map
-import mcts_pacman as mcts12
+import random
+
+class Node:
+
+
+    def __init__(self,m,p):
+        self.move=m
+        self.parent=p
+        self.win=0
+        self.visits=0
+        self.children = []
+
+
+    def est_feuille(self):
+        if len(self.children)==0:
+            return True
+        return False
+    
+    def selection(self):
+        if self.est_feuille():
+            return self.move
+        enfants=self.children
+        ind=0
+        maxi=Node(enfants[0],self).uct()
+        for i in range(len(enfants)):
+            if Node(enfants[i],self).uct()>maxi:
+                ind=i
+                maxi=Node(enfants[i],self).uct
+        if Node(enfants[ind],self).est_feuille():
+            return enfants[ind]
+        return Node(enfants[ind],self).selection()
+
+    def expansion(self,etat):
+        position=etat["pacman"]
+        if not vie_en_moins(etat):
+            for enfant in coup_possible(etat,position):
+                nc=Node(enfant,self)
+                self.children.append(nc)
+
+    def backprogation(self,resultat):
+        self.visits+=1
+        self.win+=resultat
+
+    def a_parent(self):
+        if self.parent == None:
+            return False
+        return True
+    
+    def uct(self):
+        wi=self.win
+        ni=self.visits
+        Ni=self.parent.visits
+        return (wi/ni + np.sqrt(2)*np.sqrt(np.log(Ni)/ni))
+
+
+
+def rollout(etat):
+    state=copy.deepcopy(etat)
+    compteur=0
+    while not vie_en_moins(state) or victoire(state):
+        position=state["pacman"]
+        coups=coup_possible(state,position)
+        (i,j)=random.choice(coups)
+        k,l=astar_for_ghost(state)
+        deplace(state,"pacman",i,j)
+        state["f"]=[k,l]
+        deplace(state,"f",k,l)
+        mange_fruit(state)
+        compteur+=1
+    if victoire(state) or compteur>=6:
+        return 1
+    else:
+        return 0
+        
+        
+        
+
+def MCTS1(etat):
+    root_node=Node(None,None)
+    while not vie_en_moins(etat):
+        n,s=root_node, copy.deepcopy(etat)
+        while not n.est_feuille():
+            n = n.selection()
+            #jouer le coup
+            (i,j)=n
+            k,l=astar_for_ghost(s)
+            deplace(s,"pacman",i,j)
+            s["f"]=[k,l]
+            deplace(s,"f",k,l)
+            mange_fruit(s)
+            #jouer le coup
+            n.expansion(s)
+        n = n.selection()
+        while not vie_en_moins(s):
+            s = rollout(s)
+        resultat= rollout(s)
+        while n.a_parent():
+            n.updtate(resultat)
+            n = n.parent
+    return n.parent
+
+
+
 
 carte=map.map5
 
@@ -155,8 +257,8 @@ def chemin(parent, debut, objectif):
     return path
 
 
-def victoire(state):
-    board=state["board"]
+def victoire(etat):
+    board=etat["board"]
     for i in range(len(board)):
         for j in board[i]:
             if j=="•":
@@ -179,7 +281,7 @@ while not fin_partie(state) and not victoire(state):
     affiche(state)
     time.sleep(1)
     while not vie_en_moins(state):
-        (i,j)=mcts12.MCTS1(state)
+        (i,j)=MCTS1(state)
         #k,l=coup_possible(state,state["f"])[0]
         k,l=astar_for_ghost(state)
         deplace(state,"pacman",i,j)
