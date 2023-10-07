@@ -8,41 +8,58 @@ import random
 class Node:
 
 
-    def __init__(self,m,p):
-        self.move=m
-        self.parent=p
+    def __init__(self,move,etat):
+        self.move=move
         self.win=0
         self.visits=0
-        self.children = []
-
+        self.children = {}
+        #clef=coup, valeur=node
+        self.est_terminal=False
+        self.etat=etat
 
     def est_feuille(self):
-        if len(self.children)==0:
+        etat=self.etat
+        if victoire(etat) or vie_en_moins(etat):
             return True
         return False
     
-    def selection(self):
+    def selection(self,etat):
         if self.est_feuille():
-            return self.move
+            return self
+        if len(self.children)==0:
+            return self
         enfants=self.children
         ind=0
-        maxi=Node(enfants[0],self).uct()
+        maxi=enfants[0].uct()
         for i in range(len(enfants)):
-            if Node(enfants[i],self).uct()>maxi:
+            if enfants[i].uct()>maxi:
                 ind=i
-                maxi=Node(enfants[i],self).uct
-        if Node(enfants[ind],self).est_feuille():
+                maxi=enfants[i].uct
+        if enfants[ind].est_feuille(etat):
             return enfants[ind]
-        return Node(enfants[ind],self).selection()
+        return enfants[ind].selection(etat)
 
-    def expansion(self,etat):
-        position=etat["pacman"]
-        if not vie_en_moins(etat):
-            for enfant in coup_possible(etat,position):
-                nc=Node(enfant,self)
-                self.children.append(nc)
+    def expansion(self):
+        if self.est_feuille():
+            return 0
+        etat=self.etat
+        coups=coup_possible(etat,etat["pacman"])
+        if len(self.children)!=len(coups):
+            for coup in coups:
+                if coup not in self.children:
+                    state=copy.deepcopy(etat)
+                    
+                    noeud=Node(coup)
+                    resultat=rollout(noeud)
+                    noeud.update(resultat)
+                    self.children[coup]=noeud
 
-    def backprogation(self,resultat):
+                    
+
+    
+    
+    
+    def update(self,resultat):
         self.visits+=1
         self.win+=resultat
 
@@ -55,7 +72,10 @@ class Node:
         wi=self.win
         ni=self.visits
         Ni=self.parent.visits
-        return (wi/ni + np.sqrt(2)*np.sqrt(np.log(Ni)/ni))
+        if Ni==0:
+            return 0
+        else:
+            return (wi/ni + np.sqrt(2)*np.sqrt(np.log(Ni)/ni))
 
 
 
@@ -66,7 +86,7 @@ def rollout(etat):
         position=state["pacman"]
         coups=coup_possible(state,position)
         (i,j)=random.choice(coups)
-        k,l=astar_for_ghost(state)
+        (k,l)=astar_for_ghost(state)
         deplace(state,"pacman",i,j)
         state["f"]=[k,l]
         deplace(state,"f",k,l)
@@ -81,13 +101,19 @@ def rollout(etat):
         
 
 def MCTS1(etat):
+    pass
+'''    
     root_node=Node(None,None)
-    while not vie_en_moins(etat):
+    compteur=0
+    while not vie_en_moins(etat) and compteur <5:
         n,s=root_node, copy.deepcopy(etat)
-        while not n.est_feuille():
-            n = n.selection()
+        n.expansion(state)
+        compteur2=0
+        while not n.est_feuille(state) and compteur2<5:
+            n = n.selection(state)
             #jouer le coup
-            (i,j)=n
+            mouv=n.move
+            i,j=mouv
             k,l=astar_for_ghost(s)
             deplace(s,"pacman",i,j)
             s["f"]=[k,l]
@@ -95,23 +121,25 @@ def MCTS1(etat):
             mange_fruit(s)
             #jouer le coup
             n.expansion(s)
-        n = n.selection()
-        while not vie_en_moins(s):
-            s = rollout(s)
+            compteur2+=1
+        n = n.selection(state)
+        print(1)
         resultat= rollout(s)
         while n.a_parent():
             n.updtate(resultat)
             n = n.parent
+            print(2)
+        compteur+=1
     return n.parent
 
-
+'''
 
 
 carte=map.map5
 
 
 depart_pacman=carte["pac"]
-depart_fantome=carte["ghost"]
+depart_fantomes=carte["ghost"]
 
 def init_board():
     board_s=carte["carte"]
@@ -127,13 +155,15 @@ def init_game():
     res={}
     res["board"]=init_board()
     res["pacman"]=depart_pacman
-    res["f"]=depart_fantome
+    res["f0"]=depart_fantomes[0]
+    res["f1"]=depart_fantomes[1]
+    res["f2"]=depart_fantomes[2]
     res["nbr_vies"]=3
     res["score"]=0
     return res
     
 def affiche(etat):
-    board=board_avec_persos(etat,[["pacman","ᗧ"],["f","ᗣ"]])
+    board=board_avec_persos(etat,[["pacman","ᗧ"],["f0","ᗣ"],["f1","ᗣ"],["f2","ᗣ"]])
     for line in board:
         for x in line:
             print(x, end='')
@@ -177,7 +207,7 @@ def coup_possible(etat,position):
     for mouv in mouvement:
         newpos=[PosP[0]+mouv[0],PosP[1]+mouv[1]]
         if 0 <= newpos[0] < len(board) and 0 <= newpos[1] < len(board[0]) and board[newpos[0]][newpos[1]] != '■':
-            res.append(mouv)
+            res.append(tuple(mouv))
     return res
 
 def meilleur_coup_pac(etat):
@@ -223,9 +253,9 @@ def astar_for_ghost(etat):
     objectif = tuple(etat["pacman"])
     atraiter = hd.heapdict()
     atraiter[debut] = 0
-    parent = {}
+    parents = {}
     d = {}
-    parent[debut] = None
+    parents[debut] = None
     d[debut] = 0
     while len(atraiter)>0:
         x,fx = atraiter.popitem()
@@ -240,18 +270,20 @@ def astar_for_ghost(etat):
                 d[clef] = distance
                 nouv_dist = distance + heuristique({"f": voisin, "pacman": list(objectif)})
                 atraiter[clef] = nouv_dist
-                parent[clef] = x
-    trajet = chemin(parent, debut, objectif)
+                parents[clef] = x
+    if objectif not in parents:
+        return (0, 0)
+    trajet = chemin(parents, debut, objectif)
     if len(trajet) > 1:
         return trajet[1]
     else:
         return (0,0)
 
-def chemin(parent, debut, objectif):
+def chemin(parents, debut, objectif):
     x = objectif
     path = [x]
     while x != debut:
-        x = parent[x]
+        x = parents[x]
         path.append(x)
     path.reverse()
     return path
@@ -265,6 +297,13 @@ def victoire(etat):
                 return False
     return True
 
+
+def joue(state,coup_pac):
+        (i,j)=coup_pac
+        k,l=astar_for_ghost(state)
+        deplace(state,"pacman",i,j)
+        state["f"]=[k,l]
+        mange_fruit(state)
 
 
 
