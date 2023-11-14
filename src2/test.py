@@ -44,3 +44,6 @@ def init_board():
             res_ligne.append(x)
         res.append(res_ligne)
     return res
+
+
+random.choice(board.coup_possible(carte))

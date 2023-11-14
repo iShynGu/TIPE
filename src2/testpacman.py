@@ -9,7 +9,7 @@ Niveau = dict
 
 
 class Node:
-    def __init__(self, move, plateau):
+    def __init__(self, move, plateau, parent):
         self.move = move
         self.win = 0
         self.visits = 0
@@ -17,33 +17,52 @@ class Node:
         # clef=coup, valeur=node
         self.est_terminal = False
         self.plateau = plateau
+        self.parent = parent
 
-    def est_feuille(self):
-        if self.plateau.victoire() or self.plateau.vie_en_moins():
+    def __repr__(self):
+        return f"{self.parent} {self.children}"
+
+    def est_feuille(self, scoremax):
+        if self.plateau.victoire(scoremax) or self.plateau.vie_en_moins():
             return True
         return False
 
-    def selection(self):
-        if self.est_feuille():
-            return self
-        if len(self.children) == 0:
-            return self
-        return self.uct()
+    def a_parent(self):
+        if self.parent is None:
+            return False
+        return True
 
-    def expansion(self, carte1):
-        if self.est_feuille():
-            return 0
-        plateau = self.plateau
-        coups = plateau.coup_possible_pacman(carte1)
-        if len(self.children) != len(coups):
-            for coup in coups:
+    def selection(self, scoremax, carte1):
+        if self.est_feuille(scoremax):
+            # print("test")
+            return
+
+        coups_possibles = self.plateau.coup_possible(carte1)
+        if len(coups_possibles) == 0:
+            # print("test1")
+            return
+        if len(self.children) < len(coups_possibles):
+            for coup in coups_possibles:
                 if coup not in self.children:
-                    plateau1 = plateau.copy()
-                    plateau1.joue(carte1, coup)
-                    noeud = Node(coup, plateau1)
-                    resultat = rollout(noeud.plateau, carte1)
-                    noeud.update(resultat)
-                    self.children[coup] = noeud
+                    self.expansion(coup, carte1, scoremax)
+        else:
+            meilleur_enfant = self.uct()
+            meilleur_enfant.selection(scoremax, carte1)
+
+    def expansion(self, coup, carte1, scoremax):
+        plateau1 = copy.deepcopy(self.plateau)
+        plateau1.joue(carte1, coup)
+        parent = self
+        new_node = Node(coup, plateau1, parent)
+        resultat = rollout(new_node.plateau, carte1, scoremax)
+
+        new_node.update(resultat)
+        n = self
+        while n.a_parent():
+            n.update(resultat)
+            n = n.parent
+        n.update(resultat)
+        self.children[coup] = new_node
 
     def update(self, resultat):
         self.visits += 1
@@ -66,53 +85,31 @@ class Node:
             if self.aux_uct(wi, ni, Ni) > maxi:
                 maxi = self.aux_uct(wi, ni, Ni)
                 res = coup
-        return res
+        return self.children[res]
 
 
-def rollout(plateau, carte):
+def rollout(plateau, carte, scoremax):
     plateau1 = copy.deepcopy(plateau)
     compteur = 0
-    while not plateau1.vie_en_moins() or plateau1.victoire():
+    points_debuts = plateau.score
+    while not plateau1.vie_en_moins() or plateau1.victoire(scoremax) and compteur < 100:
         coups = plateau1.coup_possible(carte)
         (i, j) = random.choice(coups)
         plateau1.joue(carte, (i, j))
         compteur += 1
-    if plateau1.victoire() or compteur >= 6:
-        return 1
+    if plateau1.victoire(scoremax):
+        return 100000000
     else:
-        return 0
+        return compteur + (plateau1.score - points_debuts) / 10
 
 
-def MCTS1(niveau):
-    plateau = Board(niveau)
-    root_node = Node(None, plateau)
-    compteur = 0
-    while not plateau.vie_en_moins() and compteur < 5:
-        n, s = root_node, copy.deepcopy(etat)
-        n.expansion(state)
-        compteur2 = 0
-        while not n.est_feuille(state) and compteur2 < 5:
-            n = n.selection(state)
-            # jouer le coup
-            mouv = n.move
-            i, j = mouv
-            k, l = astar_for_ghost(s)
-            deplace(s, "pacman", i, j)
-            s["f"] = [k, l]
-            deplace(s, "f", k, l)
-            mange_fruit(s)
-            # jouer le coup
-            n.expansion(s)
-            compteur2 += 1
-        n = n.selection(state)
-        print(1)
-        resultat = rollout(s)
-        while n.a_parent():
-            n.updtate(resultat)
-            n = n.parent
-            print(2)
-        compteur += 1
-    return n.parent
+def MCTS1(plateau, root_node, nb_simulations):
+    niveau = cartes.map5
+    carte = niveau["carte"]
+    scoremax = niveau["maxscore"]
+    for _ in range(nb_simulations):
+        root_node.selection(scoremax, carte)
+    return root_node.uct()
 
 
 class Board:
@@ -144,7 +141,6 @@ class Board:
         for k in range(len(self.posfantomes)):
             i, j = self.posfantomes[k]
             ligne = list(board[i])
-            print(self.posfantomes[k])
             ligne[j] = "ᗣ"
             board[i] = "".join(ligne)
 
@@ -158,7 +154,7 @@ class Board:
         self.posfantomes[k] = [i, j]
 
     def vie_en_moins(self):
-        for k in range(3):
+        for k in range(len(self.posfantomes)):
             if self.pospacman == self.posfantomes[k]:
                 return True
         return False
@@ -172,6 +168,12 @@ class Board:
     def fin_partie(self):
         if self.nombre_vies == 0:
             return True
+        return False
+
+    def sur_un_fantome(self, newpos):
+        for k in range(len(self.posfantomes)):
+            if self.posfantomes[k] == newpos:
+                return True
         return False
 
     def coup_possible(self, carte):
@@ -243,7 +245,6 @@ class Board:
                     nouv_dist = distance + self.heuristique(voisin, list(objectif))
                     atraiter[clef] = nouv_dist
                     parents[clef] = x
-
         trajet = self.chemin(parents, debut, objectif)
         if len(trajet) > 1:
             return trajet[1]
@@ -255,24 +256,25 @@ class Board:
         x = objectif
         path = [x]
         while x != debut:
+            if x not in parents:
+                return []
             x = parents[x]
             path.append(x)
         path.reverse()
         return path
 
-    def victoire(self, niveau):
-        if self.score == niveau["maxscore"]:
+    def victoire(self, scoremax):
+        if self.score == scoremax:
             return True
         return False
 
-    def joue(self, niveau: Niveau, coup_pac):
+    def joue(self, carte, coup_pac):
         (i, j) = coup_pac
         self.deplace_pacman(i, j)
-        for ind in range(len(self.posfantomes)):
-            print("astar")
-            k, l = self.astar_for_ghost(ind, niveau["carte"])
-            print((k, l))
-            self.deplace_fantome(ind, k, l)
+        if not self.sur_un_fantome(self.pospacman):
+            for ind in range(len(self.posfantomes)):
+                k, l = self.astar_for_ghost(ind, carte)
+                self.deplace_fantome(ind, k, l)
         self.mange_fruit()
 
     def mange_fruit(self):
@@ -287,24 +289,27 @@ class Board:
 
 if __name__ == "__main__":
     level = cartes.map5
+    carte = level["carte"]
     board = Board(level)
     fantomes_base = level["ghost"]
+    score_max = level["maxscore"]
     u = 1
-    while not board.fin_partie() and not board.victoire(level):
+    start_node = Node(None, board, None)
+    while not board.fin_partie() and not board.victoire(score_max):
         board.affiche_board(level)
         time.sleep(1)
+        noeud = start_node
         while not board.vie_en_moins():
-            (i, j) = random.choice(board.coup_possible(level["carte"]))
-            print((i, j))
-            print("test")
-            board.joue(level, (i, j))
-            print("test2")
+            noeud = MCTS1(board, noeud, 500)
+            (i, j) = noeud.move
+            print(board.coup_possible(carte))
+            # print(start_node)
+            board.joue(carte, (i, j))
             board.affiche_board(level)
             print()
             time.sleep(0.1)
         board.pospacman = level["pac"]
         board.posfantomes = fantomes_base.copy()
-        print("test")
         board.reset_map(u)
         u += 1
         print()
