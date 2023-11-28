@@ -47,3 +47,5 @@ def init_board():
 
 
 random.choice(board.coup_possible(carte))
+
+

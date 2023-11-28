@@ -337,3 +337,7 @@ map5 = {
         (23, 26),
     ],
 }
+
+
+if __name__ == "__main__":
+    print(sum(i.count(' ') for i in map5["carte"])**2)
